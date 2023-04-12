@@ -1,34 +1,29 @@
 code segment
 start:
-;       stack segment assignment:
+; stack segment assignment:
         mov     ax, seg stack
         mov     ss, ax
         mov     sp, offset stack_ptr
-        
-;       input_prompt:
+
+; print input prompt:
         mov     ax, seg data
         mov     dx, offset input_prompt
         call    print
 
-;       getting user input:
+; getting user input:
         mov     dx, offset buff
         call    input
 
-;       parsing user input:
+; parsing user input:
         call    parse_input
         
-;       calculating result:
+; calculating result:
         call    calculate_result
 
-;       printing result:
+; printing result:
         call    print_result
 
-        mov     dx, cs:[digit1]
-        call    lnprint_digit
-        mov     dx, cs:[digit2]
-        call    lnprint_digit
 exit:
-;       end program:
         mov     ax, 4c00h
         int     21h
 
@@ -37,13 +32,13 @@ buff    db 32, ?, 32 dup('$')
 endl    db 10, 13, '$'
 space   db ' ', '$'
 ;-----------------------------------------------------
-input: ; in dx - offset of location where put user input
+input: ; in dx - user input destination offset
         mov     ax, seg code
         mov     ds, ax
         mov     ah, 0ah
         int     21h
 
-;       swapping last byte of buff from 13 to '$'
+; changing last byte of buff from 13 to '$'
         mov     bp, offset buff +1
         mov     bl, byte ptr cs:[bp]
         add     bl, 1
@@ -57,65 +52,85 @@ print_result: ; in: result
         mov     dx, offset result_prompt
         call    lnprint
 
-        mov     bl, 10
         mov     ax, word ptr cs:[result]
+; if result < 0:
+        cmp     ax, 0
+        jl      negative1
+; else:
+        jmp     non_negative1
+negative1:
+        mov     bx, -1
+        mul     bx
+        push    ax
+
+        mov     ax, seg data
+        mov     dx, offset negative
+        call    print
+        pop     ax
+non_negative1:
+        mov     bl, 10
         div     bl
         mov     byte ptr cs:[digit1], al
         mov     byte ptr cs:[digit2], ah
 
+; if result >= 20:
         cmp     byte ptr cs:[digit1], 2
         jae     print_tens
-
+; if result >= 10:
         cmp     byte ptr cs:[digit1], 1
         je      print_teens
-        
+; else:
         jmp     print_ones
         ret
 print_tens:
+; calculate position in array:
         xor     ax, ax
         mov     al, byte ptr cs:[digit1]
         sub     al, 1
         mov     bl, 2
         mul     bl
+; print word:
         mov     si, offset tens
         add     si, ax
-        mov     di, [ds:[si]]
+        mov     dx, [ds:[si]]
         mov     ax, seg data
-        mov     dx, di
         call    print
 
+; if (result % 10) != 0:
         cmp     byte ptr cs:[digit2], 0
         jne     print_space
-
+; else:
         ret
 print_space:
         mov     ax, seg code
         mov     dx, offset space
         call    print
 print_ones:
+; calculate position in array:
         xor     ax, ax
         mov     al, byte ptr cs:[digit2]
         add     al, 1
         mov     bl, 2
         mul     bl
+; print word:
         mov     si, offset digits
         add     si, ax
-        mov     di, [ds:[si]]
+        mov     dx, [ds:[si]]
         mov     ax, seg data
-        mov     dx, di
         call    print
         ret
 print_teens:
+; calculate position in array:
         xor     ax, ax
         mov     al, byte ptr cs:[digit2]
         add     al, 1
         mov     bl, 2
         mul     bl
+; print word:
         mov     si, offset teens
         add     si, ax
-        mov     di, [ds:[si]]
+        mov     dx, [ds:[si]]
         mov     ax, seg data
-        mov     dx, di
         call    print
         ret
 ;-----------------------------------------------------
@@ -128,7 +143,7 @@ raise_error:
 print: ; in: dx - offset of text to print, ax - data segment address
         push    ds
         mov     ds, ax
-        mov     ah, 9           ; print msg ds:dx
+        mov     ah, 9
         int     21h
         pop     ds
         ret
@@ -145,20 +160,11 @@ lnprint: ; in dx - offset of text to print, ax - data segment address
         call    print
         ret
 ;-----------------------------------------------------
-lnprint_digit: ; in dx - offset of text to print
-        push    dx
-        mov     ax, seg code
-        mov     dx, offset endl
-        call    print
-        pop     dx
-        add     dx, '0'
-        mov     ah, 2
-        int     21h
-        ret
+
 ;................................parsing..input....................................
-string1                 db 32 dup('$')
-string2                 db 32 dup('$')
-string3                 db 32 dup('$')
+word1                   db 32 dup('$')
+word2                   db 32 dup('$')
+word3                   db 32 dup('$')
 digit1                  dw ?
 digit2                  dw ?
 operator_id             dw ?            ; ids: 0 - add, 1 - sub, 2 - mul
@@ -167,72 +173,63 @@ invalid_digit           dw 10
 invalid_operator        dw 3
 ;-----------------------------------------------------
 parse_input:
-;       reading words:
-
-        mov     si, offset buff +2      ; source
+; reading words:
+        mov     si, offset buff +2      ; buffor beginning
         mov     bp, offset buff +1
-        mov     bl, byte ptr cs:[bp]    ; total length in bytes
+        mov     bl, byte ptr cs:[bp]    ; real buffor length
         xor     bh, bh
         mov     cx, bx
 
-        mov     di, offset string1      ; destination
-        call    read_word
-        
-        mov     di, offset string2      ; destination
-        call    read_word
-        
-        mov     di, offset string3      ; destination
+        mov     di, offset word1
         call    read_word
 
-;       parsing digits:
+        mov     di, offset word2
+        call    read_word
 
-        mov     si, offset string1
+        mov     di, offset word3
+        call    read_word
+
+; parsing words:
+        mov     si, offset word1
         mov     di, offset digit1
         mov     bx, offset digits
         call    parse_word        
-        
-        mov     si, offset string2
+
+        mov     si, offset word2
         mov     di, offset operator_id
         mov     bx, offset operators
         call    parse_word
 
-        mov     si, offset string3
+        mov     si, offset word3
         mov     di, offset digit2
         mov     bx, offset digits
         call    parse_word
-
-        ;mov     dx, cs:[digit1]
-        ;call    lnprint_digit
-
-        ;mov     dx, cs:[[operator_id]]
-        ;call    lnprint_digit
-
-        ;mov     dx, cs:[digit2]
-        ;call    lnprint_digit
-
+; validation:
         mov     ax, cs:[invalid_digit]
         cmp     ax, word ptr cs:[digit1]
-        je      raise_error
-        cmp     ax, word ptr cs:[digit2]
         je      raise_error
 
         mov     ax, cs:[[invalid_operator]]
         cmp     ax, word ptr cs:[operator_id]
         je      raise_error
 
+        mov     ax, cs:[invalid_digit]
+        cmp     ax, word ptr cs:[digit2]
+        je      raise_error
+
         ret
 ;-----------------------------------------------------
-parse_word:; in: si - source word offset; di - destination word offset (int variable); bx - array of searched words offset
+parse_word:; in: si - source word offset; di - destination word offset; bx - array of valid words offset
         push    di
         mov     ax, seg data
         mov     ds, ax
-        mov     cx, word ptr ds:[bx]
+        mov     cx, word ptr ds:[bx]    ; size of word array
         push    cx
         add     bx, 2
 ;....................................>
 loop_words1: push cx
         push    si
-        mov     di, [ds:[bx]]
+        mov     di, [ds:[bx]]           ; compared word offset
 ;........................>>
 loop_chars1:
         mov     al, byte ptr cs:[si]
@@ -260,7 +257,7 @@ exit_parse_word:
         ret
 ;....................................<
 ;-----------------------------------------------------
-skip_whitespace:; in - si - buffor byte address, cx - number of bytes left
+skip_whitespace:; in - si - buffor current byte address, cx - number of bytes left
 ;.................>
 loop_chars2: push cx
         mov     al, byte ptr cs:[si]
@@ -282,7 +279,7 @@ exit_loop_chars2:
 read_word: ; in si - source bytes offset, di - destination bytes offset, cx - number of bytes left
         call    skip_whitespace
 
-        ; checking if user input is not empty
+; checking if user input is not empty
         cmp     cx, 0
         je      exit_read_word
 ;................................>
@@ -312,7 +309,8 @@ exit_loop_chars3:
         pop     cx
         jmp     exit_read_word
 ;-----------------------------------------------------
-;................................math..operation.....................................
+
+;....................................calculations....................................
 ; digit1, digit2, operator_id
 ;-----------------------------------------------------
 calculate_result:
@@ -388,6 +386,7 @@ operators       dw    3, badd, bsub, bmul
 
 input_prompt    db      "Wprowadz slowny opis dzialania: ",     '$'
 result_prompt   db      "Wynikiem jest: ",                      '$'
+negative        db      "minus ",                               '$'     
 error_msg1      db      "Blad danych wejsciowych!",             '$'
 error_msg2      db      "Nie mozna dzielic przez zero!",        '$'
 data ends
