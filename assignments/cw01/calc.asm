@@ -5,7 +5,7 @@ start:
         mov     ss, ax
         mov     sp, offset stack_ptr
 
-; print input prompt:
+; printing input prompt:
         mov     ax, seg data
         mov     dx, offset input_prompt
         call    print
@@ -28,11 +28,13 @@ exit:
         int     21h
 
 ;.................................input/output.......................................
-buff    db 32, ?, 32 dup('$')
+buff    db 128, ?, 128 dup('$')
 endl    db 10, 13, '$'
 space   db ' ', '$'
+unit_digit      db ?
+tens_digit      db ?
 ;-----------------------------------------------------
-input: ; in dx - user input destination offset
+input: ; in: dx - user input destination offset
         mov     ax, seg code
         mov     ds, ax
         mov     ah, 0ah
@@ -46,99 +48,6 @@ input: ; in dx - user input destination offset
         add     bp, bx
         mov     byte ptr cs:[bp], '$'
         ret
-;-----------------------------------------------------
-print_result: ; in: result
-        mov     ax, seg data
-        mov     dx, offset result_prompt
-        call    lnprint
-
-        mov     ax, word ptr cs:[result]
-; if result < 0:
-        cmp     ax, 0
-        jl      negative1
-; else:
-        jmp     non_negative1
-negative1:
-        mov     bx, -1
-        mul     bx
-        push    ax
-
-        mov     ax, seg data
-        mov     dx, offset negative
-        call    print
-        pop     ax
-non_negative1:
-        mov     bl, 10
-        div     bl
-        mov     byte ptr cs:[digit1], al
-        mov     byte ptr cs:[digit2], ah
-
-; if result >= 20:
-        cmp     byte ptr cs:[digit1], 2
-        jae     print_tens
-; if result >= 10:
-        cmp     byte ptr cs:[digit1], 1
-        je      print_teens
-; else:
-        jmp     print_ones
-        ret
-print_tens:
-; calculate position in array:
-        xor     ax, ax
-        mov     al, byte ptr cs:[digit1]
-        sub     al, 1
-        mov     bl, 2
-        mul     bl
-; print word:
-        mov     si, offset tens
-        add     si, ax
-        mov     dx, [ds:[si]]
-        mov     ax, seg data
-        call    print
-
-; if (result % 10) != 0:
-        cmp     byte ptr cs:[digit2], 0
-        jne     print_space
-; else:
-        ret
-print_space:
-        mov     ax, seg code
-        mov     dx, offset space
-        call    print
-print_ones:
-; calculate position in array:
-        xor     ax, ax
-        mov     al, byte ptr cs:[digit2]
-        add     al, 1
-        mov     bl, 2
-        mul     bl
-; print word:
-        mov     si, offset digits
-        add     si, ax
-        mov     dx, [ds:[si]]
-        mov     ax, seg data
-        call    print
-        ret
-print_teens:
-; calculate position in array:
-        xor     ax, ax
-        mov     al, byte ptr cs:[digit2]
-        add     al, 1
-        mov     bl, 2
-        mul     bl
-; print word:
-        mov     si, offset teens
-        add     si, ax
-        mov     dx, [ds:[si]]
-        mov     ax, seg data
-        call    print
-        ret
-;-----------------------------------------------------
-raise_error:
-        mov     ax, seg data
-        mov     dx, offset ds:[error_msg1]
-        call    lnprint
-        jmp     exit
 ;-----------------------------------------------------
 print: ; in: dx - offset of text to print, ax - data segment address
         push    ds
@@ -160,23 +69,115 @@ lnprint: ; in dx - offset of text to print, ax - data segment address
         call    print
         ret
 ;-----------------------------------------------------
+raise_error: ; in: dx - offset of error message in segment data
+        mov     ax, seg data
+        call    lnprint
+        jmp     exit
+;-----------------------------------------------------
+print_result: ; in: cs:[result]
+; print result prompt:
+        mov     ax, seg data
+        mov     dx, offset result_prompt
+        call    lnprint
 
-;................................parsing..input....................................
-word1                   db 32 dup('$')
-word2                   db 32 dup('$')
-word3                   db 32 dup('$')
+; print result:
+        mov     ax, word ptr cs:[result]
+; if result < 0:
+        cmp     ax, 0
+        jl      negative1
+; else:
+        jmp     non_negative1
+negative1:
+        mov     bx, -1
+        mul     bx
+        push    ax
+
+        mov     ax, seg data
+        mov     dx, offset negative
+        call    print
+        pop     ax
+non_negative1:
+        mov     bl, 10
+        div     bl
+        mov     byte ptr cs:[tens_digit], al
+        mov     byte ptr cs:[unit_digit], ah
+
+; if result >= 20:
+        cmp     byte ptr cs:[tens_digit], 2
+        jae     print_tens
+; if result >= 10:
+        cmp     byte ptr cs:[tens_digit], 1
+        je      print_teens
+; else:
+        jmp     print_ones
+        ret
+print_tens:
+; calculate position in array:
+        xor     ax, ax
+        mov     al, byte ptr cs:[tens_digit]
+        sub     al, 1
+        mov     bl, 2
+        mul     bl
+; print word:
+        mov     si, offset tens
+        add     si, ax
+        mov     dx, word ptr [ds:[si]]
+        mov     ax, seg data
+        call    print
+
+; if unit digit not equal 0:
+        cmp     byte ptr cs:[unit_digit], 0
+        jne     print_space
+; else:
+        ret
+print_space:
+        mov     ax, seg code
+        mov     dx, offset space
+        call    print
+print_ones:
+; calculate word position in array:
+        xor     ax, ax
+        mov     al, byte ptr cs:[unit_digit]
+        add     al, 1
+        mov     bl, 2
+        mul     bl
+; print word:
+        mov     si, offset digits
+        add     si, ax
+        mov     dx, word ptr [ds:[si]]
+        mov     ax, seg data
+        call    print
+        ret
+print_teens:
+; calculate word position in array:
+        xor     ax, ax
+        mov     al, byte ptr cs:[unit_digit]
+        add     al, 1
+        mov     bl, 2
+        mul     bl
+; print word:
+        mov     si, offset teens
+        add     si, ax
+        mov     dx, word ptr [ds:[si]]
+        mov     ax, seg data
+        call    print
+        ret
+;-----------------------------------------------------
+
+;................................input..parser....................................
+word1                   db 128 dup('$')
+word2                   db 128 dup('$')
+word3                   db 128 dup('$')
 digit1                  dw ?
 digit2                  dw ?
-operator_id             dw ?            ; ids: 0 - add, 1 - sub, 2 - mul
+operator_id             dw ?            ; id: 0-add, 1-sub, 2-mul, 3-div
 result                  dw ?
-invalid_digit           dw 10
-invalid_operator        dw 3
 ;-----------------------------------------------------
 parse_input:
 ; reading words:
         mov     si, offset buff +2      ; buffor beginning
         mov     bp, offset buff +1
-        mov     bl, byte ptr cs:[bp]    ; real buffor length
+        mov     bl, byte ptr cs:[bp]    ; input length
         xor     bh, bh
         mov     cx, bx
 
@@ -204,34 +205,24 @@ parse_input:
         mov     di, offset digit2
         mov     bx, offset digits
         call    parse_word
-; validation:
-        mov     ax, cs:[invalid_digit]
-        cmp     ax, word ptr cs:[digit1]
-        je      raise_error
-
-        mov     ax, cs:[[invalid_operator]]
-        cmp     ax, word ptr cs:[operator_id]
-        je      raise_error
-
-        mov     ax, cs:[invalid_digit]
-        cmp     ax, word ptr cs:[digit2]
-        je      raise_error
-
         ret
 ;-----------------------------------------------------
 parse_word:; in: si - source word offset; di - destination word offset; bx - array of valid words offset
         push    di
         mov     ax, seg data
         mov     ds, ax
-        mov     cx, word ptr ds:[bx]    ; size of word array
+        mov     cx, word ptr ds:[bx]    ; size of valid words array
         push    cx
         add     bx, 2
-;....................................>
+; iterating through array of valid words
+;......................................>
 loop_words1: push cx
         push    si
-        mov     di, [ds:[bx]]           ; compared word offset
-;........................>>
+        mov     di, word ptr [ds:[bx]]           ; compared word offset
+; iterating through each byte of input word
+;..........................>>
 loop_chars1:
+; comparing two bytes
         mov     al, byte ptr cs:[si]
         cmp     al, byte ptr ds:[di]
         jne     continue_words1
@@ -240,7 +231,8 @@ loop_chars1:
         inc     di
         cmp     al, '$'
         jne     loop_chars1
-;........................<<
+;..........................<<
+; input word matched a valid word (cx > 0) or input word is invalid (cx == 0)
         pop     si
         pop     cx
         jmp     exit_parse_word
@@ -250,12 +242,17 @@ continue_words1:
         add     bx, 2           ; jumping 2 bytes (word)
         loop    loop_words1
 exit_parse_word:
+; if cx == 0: (invalid word)
+        cmp     cx, 0
+        mov     dx, offset ds:[invalid_input]
+        je      raise_error
+; else: (valid word)
         pop     ax              ; size of array (initial cx)
         sub     ax, cx
-        pop     di
+        pop     di              ; initial offset of word destination
         mov     word ptr cs:[di], ax
         ret
-;....................................<
+;......................................<
 ;-----------------------------------------------------
 skip_whitespace:; in - si - buffor current byte address, cx - number of bytes left
 ;.................>
@@ -277,12 +274,13 @@ exit_loop_chars2:
         ret
 ;-----------------------------------------------------
 read_word: ; in si - source bytes offset, di - destination bytes offset, cx - number of bytes left
+; moving to first not ' ' byte 
         call    skip_whitespace
 
 ; checking if user input is not empty
         cmp     cx, 0
         je      exit_read_word
-;................................>
+;..................................>
 loop_chars3:  push cx
 
         mov     al, byte ptr cs:[si]
@@ -300,7 +298,7 @@ continue_loop_chars3:
         inc     si
         pop     cx
         loop    loop_chars3
-;................................<
+;..................................<
 exit_read_word:
         ret
 
@@ -311,17 +309,19 @@ exit_loop_chars3:
 ;-----------------------------------------------------
 
 ;....................................calculations....................................
-; digit1, digit2, operator_id
+; in: cs:[digit1], cs:[digit2], cs:[operator_id]
 ;-----------------------------------------------------
 calculate_result:
-        xor     ax, ax
-        add     ax, cs:[digit1]
+;        xor     ax, ax
+        mov     ax, cs:[digit1]
         cmp     cs:[operator_id], 0
         je      addition
         cmp     cs:[operator_id], 1
         je      substraction
         cmp     cs:[operator_id], 2
         je      multiplication
+        cmp     cs:[operator_id], 3
+        je      division
 addition:
         add     ax, cs:[digit2]
         jmp     exit_calculate_result
@@ -331,6 +331,17 @@ substraction:
 multiplication:
         mul     cs:[digit2]
         jmp     exit_calculate_result
+division:
+        mov     bl, byte ptr cs:[digit2]
+; checking if there is not division by zero
+        cmp     bl, 0
+        mov     dx, offset ds:[division_by_0]
+        je      raise_error
+
+        div     bl
+        xor     ah, ah
+        jmp     exit_calculate_result
+
 exit_calculate_result:
         mov     cs:[result], ax
         ret
@@ -345,50 +356,52 @@ stack ends
 
 
 data segment
-b0      db      "zero",         '$'
-b1      db      "jeden",        '$'
-b2      db      "dwa",          '$'
-b3      db      "trzy",         '$'
-b4      db      "cztery",       '$'
-b5      db      "piec",         '$'
-b6      db      "szesc",        '$'
-b7      db      "siedem",       '$'
-b8      db      "osiem",        '$'
-b9      db      "dziewiec",     '$'
-digits  dw      10, b0, b1, b2, b3, b4, b5, b6, b7, b8, b9
+w0      db      "zero",         '$'
+w1      db      "jeden",        '$'
+w2      db      "dwa",          '$'
+w3      db      "trzy",         '$'
+w4      db      "cztery",       '$'
+w5      db      "piec",         '$'
+w6      db      "szesc",        '$'
+w7      db      "siedem",       '$'
+w8      db      "osiem",        '$'
+w9      db      "dziewiec",     '$'
+digits  dw      10, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9
 
-b10     db      "dziesiec",             '$'
-b11     db      "jedenascie",           '$'
-b12     db      "dwanascie",            '$'
-b13     db      "trzynascie",           '$'
-b14     db      "czternascie",          '$'
-b15     db      "pietnascie",           '$'
-b16     db      "szesnascie",           '$'
-b17     db      "siedemnascie",         '$'
-b18     db      "osiemnascie",          '$'
-b19     db      "dziewietnascie",       '$'
-teens   dw      10, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19
+w10     db      "dziesiec",             '$'
+w11     db      "jedenascie",           '$'
+w12     db      "dwanascie",            '$'
+w13     db      "trzynascie",           '$'
+w14     db      "czternascie",          '$'
+w15     db      "pietnascie",           '$'
+w16     db      "szesnascie",           '$'
+w17     db      "siedemnascie",         '$'
+w18     db      "osiemnascie",          '$'
+w19     db      "dziewietnascie",       '$'
+teens   dw      10, w10, w11, w12, w13, w14, w15, w16, w17, w18, w19
 
-b20     db      "dwadziescia",          '$'
-b30     db      "trzydziesci",          '$'
-b40     db      "czterdziesci",         '$'
-b50     db      "piecdziesiat",         '$'
-b60     db      "szescdziesiat",        '$'
-b70     db      "siedemdziesiat",       '$'
-b80     db      "osiemdziesiat",        '$'
-b90     db      "dziewiecdziesiat",     '$'
-tens    dw      8, b20, b30, b40, b50, b60, b70, b80, b90
+w20     db      "dwadziescia",          '$'
+w30     db      "trzydziesci",          '$'
+w40     db      "czterdziesci",         '$'
+w50     db      "piecdziesiat",         '$'
+w60     db      "szescdziesiat",        '$'
+w70     db      "siedemdziesiat",       '$'
+w80     db      "osiemdziesiat",        '$'
+w90     db      "dziewiecdziesiat",     '$'
+tens    dw      8, w20, w30, w40, w50, w60, w70, w80, w90
 
-badd    db      "dodac",        '$'
-bsub    db      "odjac",        '$'
-bmul    db      "razy",         '$'
-operators       dw    3, badd, bsub, bmul
+w_add    db      "plus",        '$'
+w_sub    db      "minus",       '$'
+w_mul    db      "razy",        '$'
+w_div    db      "przez",       '$'
+operators       dw    4, w_add, w_sub, w_mul, w_div
 
 input_prompt    db      "Wprowadz slowny opis dzialania: ",     '$'
 result_prompt   db      "Wynikiem jest: ",                      '$'
 negative        db      "minus ",                               '$'     
-error_msg1      db      "Blad danych wejsciowych!",             '$'
-error_msg2      db      "Nie mozna dzielic przez zero!",        '$'
+invalid_input   db      "Blad danych wejsciowych!",             '$'
+division_by_0   db      "Nie mozna dzielic przez zero!",        '$'
+
 data ends
 
 
