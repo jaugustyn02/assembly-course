@@ -20,8 +20,6 @@ start1:
         rep stosw
 
 
-
-
 p1:     in      al, 60h
         cmp     al, 1; ESC
         jz      koniec1
