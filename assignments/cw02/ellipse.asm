@@ -21,8 +21,8 @@ exit:
 arg_buffer      db      200 dup('$')
 bytes_left      dw      ?
 nums            dw      2 dup(0)
-usage_error_msg db      'Usage: ellipse.exe <a> <b>', 13, '$'
-args_error_msg  db      'Error: Argument is out of range: (0 <= a < 160), (0 <= b < 100)', 13, '$'
+usage_error_msg db      'Usage: ellipse.exe <dx> <dy>', 13, '$'
+args_error_msg  db      'Error: Argument is out of range: (0 <= dx, dy < 200)', 13, '$'
 ;-----------------------------------------------------
 ; PSP ds: 80h, 81h, 82h - size, ' ', arguments
 read_arguments:
@@ -86,6 +86,16 @@ loop4_end:
 loop6_end:
 ;..................................<
         mov      ax, word ptr cs:[nums]
+        mov      bl, 2
+        div      bl
+        mov      word ptr cs:[nums], 0
+        mov      byte ptr cs:[nums], al
+        mov      ax, word ptr cs:[nums + 2]
+        div      bl
+        mov      word ptr cs:[nums + 2], 0
+        mov      byte ptr cs:[nums + 2], al
+
+        mov      ax, word ptr cs:[nums]
         mov      word ptr cs:[a], ax
         mov      ax, word ptr cs:[nums + 2]
         mov      word ptr cs:[b], ax
@@ -104,7 +114,7 @@ loop5_end:
 ;-----------------------------------------------------
 validate_arguments:
         mov     ax, word ptr cs:[a]
-        cmp     ax, 160
+        cmp     ax, 100
         jae     throw_args_error
         cmp     ax, 0
         jb      throw_args_error
@@ -135,7 +145,7 @@ print: ; in dx - txt offset
 ;-----------------------------------------------------
 
 ;.................................KeysInput......................................
-selected_color  db      2
+selected_color  db      9
 last_key        db      0
 a               dw      ? ; in range [0, 160)
 b               dw      ? ; in range [0, 100)
@@ -205,22 +215,22 @@ elif_3: cmp     al, 80; down arrow key
 
 elif_4: cmp     al, 2; '1' key 
         jnz     elif_5
-        mov     byte ptr cs:[selected_color], 2
+        mov     byte ptr cs:[selected_color], 9 ; blue
         jmp     main_loop
 
 elif_5: cmp     al, 3; '2' key
         jnz     elif_6
-        mov     byte ptr cs:[selected_color], 14
+        mov     byte ptr cs:[selected_color], 2 ; green
         jmp     main_loop
 
 elif_6: cmp     al, 4; '3' key
         jnz     elif_7
-        mov     byte ptr cs:[selected_color], 4
+        mov     byte ptr cs:[selected_color], 4 ; red
         jmp     main_loop
 
 elif_7: cmp     al, 5; '4' key
         jnz     elif_8
-        mov     byte ptr cs:[selected_color], 13
+        mov     byte ptr cs:[selected_color], 13 ; purple
         jmp     main_loop
 
 elif_8: cmp     al, 19; 'r' key
@@ -272,7 +282,7 @@ color   db      ?
 ;-----------------------------------------------------
 draw_elipse:; in: a, b, x_center, y_center
 
-; ```drawing elipse using mid point algorithm```
+; ```drawing elipse using mid point (Bresenham's) algorithm```
 
         ; use selected color
         mov     al, byte ptr cs:[selected_color]
