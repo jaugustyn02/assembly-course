@@ -14,13 +14,10 @@ start:
         mov     dx, offset buff
         call    input
 
-; parsing user input:
         call    parse_input
         
-; calculating result:
         call    calculate_result
 
-; printing result:
         call    print_result
 
 exit:
