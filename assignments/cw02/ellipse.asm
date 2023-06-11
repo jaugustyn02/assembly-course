@@ -77,14 +77,14 @@ loop4:
 
         inc     si
         loop    loop4
+;.................<
 loop4_end:
         mov     word ptr cs:[bytes_left], cx
         add     di, 2 ; next number (2 bytes)
-;.................<
         pop     cx
         loop    loop6
-loop6_end:
 ;..................................<
+loop6_end:
         mov      ax, word ptr cs:[nums]
         mov      bl, 2
         div      bl
